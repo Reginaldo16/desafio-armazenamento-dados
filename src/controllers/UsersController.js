@@ -4,13 +4,17 @@ const { default: mongoose } = require("mongoose");
 
 const getAllUser = asyncHandler(async (req, res) => {
   const users = await User.find({});
-  res.status(200).json(users);
+  res.status(200).json(
+    users.map((user) => {
+      return { id: user._id, name: user.name, email: user.email };
+    })
+  );
 });
 
 const getUserById = asyncHandler(async (req, res) => {
   const userId = req.params.id;
   if (!mongoose.Types.ObjectId.isValid(userId)) {
-    return res.status(400).json({ msg: "ID Obrigatorio" });
+    return res.status(400).json({ message: "ID Obrigatorio" });
   }
 
   try {
@@ -19,25 +23,56 @@ const getUserById = asyncHandler(async (req, res) => {
     if (!user) {
       return res.status(404).json({ msg: "Usuario nao encontrado" });
     }
-    res.status(200).json(user);
+    const { email, _id } = user;
+    res.status(200).json({ email, _id });
   } catch (error) {
-    res.status(500).json({ msg: "Erro do servidor", error: error.msg });
+    res
+      .status(400)
+      .json({ message: "Erro do servidor", error: { erro: error.message } });
   }
 });
 
 const SignUp = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, passwordConfirmation } = req.body;
 
-  if (!name || !email || !password) {
-    return res.status(400).json("Todos os campos sao obrigatorios");
+  try {
+    if (!email || !password || !passwordConfirmation) {
+      return res.status(400).json({
+        message: "Os dados introduzidos não são válidos.",
+        errors: {},
+      });
+    }
+
+    if (password !== passwordConfirmation) {
+      return res.status(400).json({
+        errors: {
+          passwordConfirmation: "As senhas não coincidem",
+        },
+      });
+    }
+
+    const userExist = await User.findOne({ email });
+    if (userExist) {
+      return res.status(409).json({ message: "E-mail já cadastrado" });
+    }
+
+    const user = new User({
+      name,
+      email,
+      password,
+      passwordConfirmation,
+    });
+
+    await user.save();
+
+    res.status(201).json({
+      message: "Usuário criado com sucesso!",
+      usuario: user,
+    });
+  } catch (error) {
+    console.error("Erro interno do servidor:", error);
+    res.status(500).json({ message: "Erro interno do servidor" });
   }
-  let existUser = await User.findOne({ email });
-  if (existUser) {
-    return res.status(409).json("email cadastrado");
-  }
-  const user = new User({ name, email, password });
-  await user.save();
-  res.status(201).json(user);
 });
 
 const login = asyncHandler(async (req, res) => {
@@ -49,7 +84,7 @@ const login = asyncHandler(async (req, res) => {
   try {
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ msg: "E-mail ou Senha invalidos" });
+      return res.status(404).json({ msg: "Usuario nao encontrado" });
     }
     if (user.password !== password) {
       return res.status(400).json({ msg: "E-mail ou Senha invalidos" });
@@ -59,10 +94,12 @@ const login = asyncHandler(async (req, res) => {
       user: {
         name: user.name,
       },
-      text: "Logado",
+      text: " esta Logado",
     });
   } catch (error) {
-    res.status(500).json({ msg: "Erro no servidor", error: error.message });
+    res.status(400).json({
+      error: error.message,
+    });
   }
 });
 

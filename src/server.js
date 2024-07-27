@@ -8,5 +8,5 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 connect();
 
-app.use('/api/v1',userRoutes)
+app.use('/api/',userRoutes)
 app.listen(port,()=>console.log(`Servidor rodando na porta localhost:${port}`))
